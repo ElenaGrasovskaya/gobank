@@ -1,1 +1,3 @@
-///GoBank, account managing app
+#GoBank
+
+##An account managing app
