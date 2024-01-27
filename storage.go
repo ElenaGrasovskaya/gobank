@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"fmt"
+	"log"
 
 	_ "github.com/lib/pq"
 )
@@ -22,15 +23,34 @@ type PostgresStore struct {
 
 func NewPostgresStore() (*PostgresStore, error) {
 	fmt.Println("Init DB gobank")
-	connStr := "user=postgres password=gobank dbname=postgres sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
+
+	const (
+		host     = "dpg-cmqed0ug1b2c73d5crlg-a.oregon-postgres.render.com"
+		port     = 5432 // default PostgreSQL port
+		user     = "coder"
+		password = "xDb3RSZGK8dETbukE7YPISQz6gfgYbEI"
+		dbname   = "gobankdb"
+	)
+
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+		"password=%s dbname=%s sslmode=require",
+		host, port, user, password, dbname)
+
+	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	//defer db.Close()
+
+	// Check the connection
+	err = db.Ping()
+	if err != nil {
+		log.Fatal(err)
 		return nil, err
 	}
 
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
+	fmt.Println("Successfully connected!")
 
 	return &PostgresStore{
 		db: db,
