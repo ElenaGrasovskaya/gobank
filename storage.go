@@ -2,9 +2,12 @@ package main
 
 import (
 	"database/sql"
-
 	"fmt"
 	"log"
+	"os"
+	"strconv"
+
+	"github.com/joho/godotenv"
 
 	_ "github.com/lib/pq"
 )
@@ -24,13 +27,16 @@ type PostgresStore struct {
 func NewPostgresStore() (*PostgresStore, error) {
 	fmt.Println("Init DB gobank")
 
-	const (
-		host     = "dpg-cmqed0ug1b2c73d5crlg-a.oregon-postgres.render.com"
-		port     = 5432 // default PostgreSQL port
-		user     = "coder"
-		password = "xDb3RSZGK8dETbukE7YPISQz6gfgYbEI"
-		dbname   = "gobankdb"
-	)
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	host := os.Getenv("DB_HOST")
+	port, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	user := os.Getenv("DB_USER")
+	password := os.Getenv("DB_PASSWORD")
+	dbname := os.Getenv("DB_NAME")
 
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=require",
