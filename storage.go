@@ -124,7 +124,7 @@ func (s *PostgresStore) DeleteAccount(id int) error {
 }
 func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
 
-	rows, err := s.db.Query("select * from account where id=$1", id)
+	rows, err := s.db.Query("select first_name, last_name, number, balance, created_at from account where id=$1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
 }
 
 func (s *PostgresStore) GetAccounts() ([]*Account, error) {
-	rows, err := s.db.Query("select * from account")
+	rows, err := s.db.Query("select first_name, last_name, number, balance, created_at from account")
 	if err != nil {
 		return nil, err
 	}
