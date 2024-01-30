@@ -104,6 +104,21 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 	return fmt.Errorf("method not allowed %s", r.Method)
 }
 
+func (s *APIServer) Run() {
+	router := mux.NewRouter()
+
+	// Define your routes
+	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
+	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleGetAccountById))
+	router.HandleFunc("/transfer", makeHTTPHandleFunc(s.handleTransfer))
+
+	// Apply the CORS middleware to the router
+	corsRouter := corsMiddleware(router)
+
+	fmt.Println("JSON API server is running on port: " + s.listenAddr)
+	http.ListenAndServe(s.listenAddr, corsRouter)
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers
@@ -121,25 +136,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// Serve the next handler
 		next.ServeHTTP(w, r)
 	})
-}
-
-func (s *APIServer) Run() {
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, World!")
-	})
-
-	// Apply the CORS middleware
-	http.Handle("/", corsMiddleware(handler))
-
-	router := mux.NewRouter()
-	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
-
-	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(s.handleGetAccountById))
-	router.HandleFunc("/transfer", makeHTTPHandleFunc(s.handleTransfer))
-
-	fmt.Println("JSON API server is running on port: " + s.listenAddr)
-	http.ListenAndServe(s.listenAddr, router)
 }
 
 func WriteJSON(w http.ResponseWriter, status int, v any) error {
