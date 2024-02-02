@@ -18,6 +18,7 @@ type Storage interface {
 	UpdateAccount(*Account) error
 	GetAccounts() ([]*Account, error)
 	GetAccountById(int) (*Account, error)
+	GetAccountByEmail(string) (*Account, error)
 }
 
 type PostgresStore struct {
@@ -28,12 +29,20 @@ func NewPostgresStore() (*PostgresStore, error) {
 	fmt.Println("Init DB gobank")
 
 	appEnv := os.Getenv("APP_ENV")
-	if appEnv == "development" {
-		// Load .env file in development environment
-		err := godotenv.Load()
-		if err != nil {
-			log.Fatal("Error loading .env file")
-		}
+	fmt.Println(appEnv)
+	/* 	if appEnv == "development" {
+	   		// Load .env file in development environment
+	   		err := godotenv.Load()
+	   		if err != nil {
+	   			log.Fatal("Error loading .env file")
+	   		}
+	   	}
+	*/
+
+	// Load .env file in development environment
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
 	}
 
 	host := os.Getenv("DB_HOST")
@@ -76,10 +85,12 @@ func (s *PostgresStore) Init() error {
 }
 
 func (s *PostgresStore) CreateAccountTable() error {
-	query := `create table if not exists account(
+	query := `create table if not exists account (
 		id serial primary key,
 		first_name varchar(50),
 		last_name varchar(50),
+		email varchar(50),
+		password varchar(200),
 		number serial,
 		balance int,
 		created_at timestamp
@@ -93,13 +104,15 @@ func (s *PostgresStore) CreateAccount(acc *Account) error {
 
 	query := `
 	insert into account
-	(first_name, last_name, number, balance, created_at)
-	values ($1, $2, $3, $4, $5)
+	(first_name, last_name, email, password, number, balance, created_at)
+	values ($1, $2, $3, $4, $5, $6, $7)
 	`
 	resp, err := s.db.Query(
 		query,
 		acc.FirstName,
 		acc.LastName,
+		acc.Email,
+		acc.Password,
 		acc.Number,
 		acc.Balance,
 		acc.CreatedAt,
@@ -124,7 +137,7 @@ func (s *PostgresStore) DeleteAccount(id int) error {
 }
 func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
 
-	rows, err := s.db.Query("select id, first_name, last_name, number, balance, created_at from account where id=$1", id)
+	rows, err := s.db.Query("select id, first_name, last_name, email, password, number, balance, created_at from account where id=$1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -136,8 +149,21 @@ func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
 	return nil, fmt.Errorf("account %d not found", id)
 }
 
+func (s *PostgresStore) GetAccountByEmail(email string) (*Account, error) {
+	rows, err := s.db.Query("select id, first_name, last_name, email, password, number, balance, created_at from account where email=$1", email)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		return ScanIntoAccount(rows)
+	}
+
+	return nil, fmt.Errorf("account %s not found", email)
+}
+
 func (s *PostgresStore) GetAccounts() ([]*Account, error) {
-	rows, err := s.db.Query("select id, first_name, last_name, number, balance, created_at from account")
+	rows, err := s.db.Query("select id, first_name, last_name, email, password, number, balance, created_at from account")
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +184,8 @@ func ScanIntoAccount(r *sql.Rows) (*Account, error) {
 		&account.ID,
 		&account.FirstName,
 		&account.LastName,
+		&account.Email,
+		&account.Password,
 		&account.Number,
 		&account.Balance,
 		&account.CreatedAt)
