@@ -19,6 +19,12 @@ type Storage interface {
 	GetAccounts() ([]*Account, error)
 	GetAccountById(int) (*Account, error)
 	GetAccountByEmail(string) (*Account, error)
+
+	CreateExpense(*Expense) error
+	/* 	UpdateExpense(*Expense) error
+	   	DeleteExpense(int) error */
+	GetExpenseForUser(int) ([]*Expense, error)
+	GetAllExpense() ([]*Expense, error)
 }
 
 type PostgresStore struct {
@@ -81,10 +87,10 @@ func NewPostgresStore() (*PostgresStore, error) {
 }
 
 func (s *PostgresStore) Init() error {
-	return s.CreateAccountTable()
+	return s.CreateTables()
 }
 
-func (s *PostgresStore) CreateAccountTable() error {
+func (s *PostgresStore) CreateTables() error {
 	query := `create table if not exists account (
 		id serial primary key,
 		first_name varchar(50),
@@ -94,8 +100,16 @@ func (s *PostgresStore) CreateAccountTable() error {
 		number serial,
 		balance int,
 		created_at timestamp
-	)`
-
+	);
+	create table if not exists expense (
+		id serial primary key,
+		user_id int,
+		expense_name varchar(50),
+		expense_purpose varchar(50),
+		expense_value float,
+		created_at timestamp,
+		FOREIGN KEY (user_id) REFERENCES account(id)
+		);`
 	_, err := s.db.Exec(query)
 	return err
 }
@@ -116,6 +130,30 @@ func (s *PostgresStore) CreateAccount(acc *Account) error {
 		acc.Number,
 		acc.Balance,
 		acc.CreatedAt,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%+v\n", resp)
+	return nil
+}
+
+func (s *PostgresStore) CreateExpense(exp *Expense) error {
+
+	query := `
+	insert into expense
+	(user_id, expense_name, expense_purpose, expense_value, created_at)
+	values ($1, $2, $3, $4, $5)
+	`
+	resp, err := s.db.Query(
+		query,
+		exp.UserId,
+		exp.ExpenseName,
+		exp.ExpensePurpose,
+		exp.ExpenseValue,
+		exp.CreatedAt,
 	)
 
 	if err != nil {
@@ -191,4 +229,50 @@ func ScanIntoAccount(r *sql.Rows) (*Account, error) {
 		&account.CreatedAt)
 
 	return account, err
+}
+
+func ScanIntoExpense(r *sql.Rows) (*Expense, error) {
+	expense := new(Expense)
+	err := r.Scan(
+		&expense.ID,
+		&expense.UserId,
+		&expense.ExpenseName,
+		&expense.ExpensePurpose,
+		&expense.ExpenseValue,
+		&expense.CreatedAt,
+	)
+
+	return expense, err
+}
+
+func (s *PostgresStore) GetExpenseForUser(id int) ([]*Expense, error) {
+	rows, err := s.db.Query("select id, user_id, expense_name, expense_purpose, expense_value, created_at from expense where user_id=$1", id)
+	if err != nil {
+		return nil, err
+	}
+	expenses := []*Expense{}
+	for rows.Next() {
+		expense, err := ScanIntoExpense(rows)
+		if err != nil {
+			return nil, err
+		}
+		expenses = append(expenses, expense)
+	}
+	return expenses, nil
+}
+
+func (s *PostgresStore) GetAllExpense() ([]*Expense, error) {
+	rows, err := s.db.Query("select id, user_id, expense_name, expense_purpose, expense_value, created_at from expense")
+	if err != nil {
+		return nil, err
+	}
+	expenses := []*Expense{}
+	for rows.Next() {
+		expense, err := ScanIntoExpense(rows)
+		if err != nil {
+			return nil, err
+		}
+		expenses = append(expenses, expense)
+	}
+	return expenses, nil
 }

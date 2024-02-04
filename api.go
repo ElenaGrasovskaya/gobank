@@ -9,11 +9,9 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/securecookie"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50TnVtYmVyIjo2Mjk4OCwiZXhwaXJlc0F0IjoxNTAwMH0.7pUeYeHFKe30HlfIQXKPnFZIEZ2uBmPjK20dyr_wrWU
 type APIServer struct {
 	listenAddr string
 	store      Storage
@@ -35,6 +33,31 @@ func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) err
 	}
 
 	return WriteJSON(w, http.StatusOK, accounts)
+}
+
+func (s *APIServer) handleGetAllExpense(w http.ResponseWriter, r *http.Request) error {
+
+	expenses, err := s.store.GetAllExpense()
+
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, expenses)
+}
+
+func (s *APIServer) handleGetExpense(w http.ResponseWriter, r *http.Request) error {
+	userId, err := getIdFrommCookie(w, r)
+	if err != nil {
+		return err
+	}
+	expenses, err := s.store.GetExpenseForUser(userId)
+
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, expenses)
 }
 
 func (s *APIServer) handleGetAccountById(w http.ResponseWriter, r *http.Request) error {
@@ -81,6 +104,29 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 	return WriteJSON(w, http.StatusOK, account)
 }
 
+func (s *APIServer) handleCreateExpense(w http.ResponseWriter, r *http.Request) error {
+	createExpenseRequest := new(CreateExpenseRequest)
+	if err := json.NewDecoder(r.Body).Decode(createExpenseRequest); err != nil {
+		return err
+	}
+
+	userId, err := getIdFrommCookie(w, r)
+	if err != nil {
+		return err
+	}
+
+	expense, err := NewExpense(userId, createExpenseRequest.ExpenseName, createExpenseRequest.ExpensePurpose, createExpenseRequest.ExpenseValue)
+	if err != nil {
+		return err
+	}
+
+	if err := s.store.CreateExpense(expense); err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, expense)
+}
+
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
 	id, err := getId(r)
 	if err != nil {
@@ -116,20 +162,24 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 		return WriteJSON(w, http.StatusExpectationFailed, req)
 	}
 
-	compare, err := EncrPassword(req.Password, account.Password)
+	comparePass, err := EncrPassword(req.Password, account.Password)
 
 	if err != nil {
 		clearSession(w)
 		return WriteJSON(w, http.StatusResetContent, err)
 	}
 
-	if compare {
-		setSession(req.Email, w)
+	if comparePass {
+		account, err := s.store.GetAccountByEmail(req.Email)
+		if err != nil {
+			return WriteJSON(w, http.StatusBadRequest, req)
+		}
+		setSession(account.ID, req.Email, w)
 
 		return WriteJSON(w, http.StatusAccepted, req)
 	}
 
-	return WriteJSON(w, http.StatusBadRequest, compare)
+	return WriteJSON(w, http.StatusBadRequest, comparePass)
 }
 
 func (s *APIServer) handleRegister(w http.ResponseWriter, r *http.Request) error {
@@ -180,12 +230,15 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
-	// Define your routes
+	// Defining routes
 	router.HandleFunc("/login", makeHTTPHandleFunc(s.handleLogin)).Methods(http.MethodPost)
+	router.HandleFunc("/expense", withJWTAuth(makeHTTPHandleFunc(s.handleCreateExpense), s.store)).Methods(http.MethodPost)
+	router.HandleFunc("/expense", withJWTAuth(makeHTTPHandleFunc(s.handleGetExpense), s.store)).Methods(http.MethodGet)
+	router.HandleFunc("/expenses", makeHTTPHandleFunc(s.handleGetAllExpense)).Methods(http.MethodGet)
 	router.HandleFunc("/register", makeHTTPHandleFunc(s.handleRegister)).Methods(http.MethodPost)
 	router.HandleFunc("/logout", makeHTTPHandleFunc(s.handleLogout)).Methods(http.MethodPost)
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
-	router.HandleFunc("/account/{id}", withJWTAuth(makeHTTPHandleFunc(s.handleGetAccountById), s.store)).Methods(http.MethodPost)
+	router.HandleFunc("/account/{id}", withJWTAuth(makeHTTPHandleFunc(s.handleGetAccountById), s.store)).Methods(http.MethodGet)
 	router.HandleFunc("/transfer", makeHTTPHandleFunc(s.handleTransfer))
 
 	// Apply the CORS middleware to the router
@@ -241,10 +294,13 @@ func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("calling JWT auth middleware")
+		cookies, err := r.Cookie("token")
 
-		tokenString := r.Header.Get("x-jwt-token")
+		if err != nil {
+			fmt.Println(err)
+		}
 
-		token, err := validateJWT(tokenString)
+		token, err := validateJWT(cookies.Value)
 		if err != nil {
 			PermissionDenied(w)
 			return
@@ -255,23 +311,54 @@ func withJWTAuth(handlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 			return
 		}
 
-		userId, err := getId(r)
-		if err != nil {
-			PermissionDenied(w)
-			return
+		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+			id := claims["id"].(float64)
+			email := claims["email"].(string)
+			account, err := s.GetAccountById(int(id))
+
+			if err != nil {
+				PermissionDenied(w)
+				return
+			}
+			if account.Email != email {
+				PermissionDenied(w)
+				return
+			}
+			fmt.Printf("%s %v", email, id)
+			handlerFunc(w, r)
+
+		} else {
+			fmt.Errorf("invalid token")
 		}
-		account, err := s.GetAccountById(userId)
-		if err != nil {
-			PermissionDenied(w)
-			return
-		}
-		fmt.Println(account)
-		claims := token.Claims.(jwt.MapClaims)
-		if account.Number != int64(claims["accountNumber"].(float64)) {
-			PermissionDenied(w)
-			return
-		}
-		handlerFunc(w, r)
+
+	}
+}
+
+func getIdFrommCookie(w http.ResponseWriter, r *http.Request) (int, error) {
+	cookies, err := r.Cookie("token")
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	token, err := validateJWT(cookies.Value)
+	if err != nil {
+		PermissionDenied(w)
+		return 0, err
+	}
+
+	if !token.Valid {
+		PermissionDenied(w)
+		return 0, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		id := claims["id"].(float64)
+		return int(id), nil
+
+	} else {
+		PermissionDenied(w)
+		return 0, err
 	}
 }
 
@@ -307,27 +394,32 @@ func getId(r *http.Request) (int, error) {
 	return id, nil
 }
 
-var cookieHandler = securecookie.New(
-	securecookie.GenerateRandomKey(64),
-	securecookie.GenerateRandomKey(32))
+func setSession(userId int, userEmail string, response http.ResponseWriter) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":    userId,
+		"email": userEmail,
+	})
 
-func setSession(userName string, response http.ResponseWriter) {
-	value := map[string]string{
-		"name": userName,
-	}
-	if encoded, err := cookieHandler.Encode("session", value); err == nil {
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	if err != nil {
+		fmt.Println("failed to create token")
+		return
+	} else {
+
 		cookie := &http.Cookie{
-			Name:  "session",
-			Value: encoded,
-			Path:  "/",
+			Name:   "token",
+			Value:  tokenString,
+			Path:   "/",
+			MaxAge: 1600,
 		}
+		fmt.Println("token created")
 		http.SetCookie(response, cookie)
 	}
 }
 
 func clearSession(response http.ResponseWriter) {
 	cookie := &http.Cookie{
-		Name:   "session",
+		Name:   "token",
 		Value:  "",
 		Path:   "/",
 		MaxAge: -1,
