@@ -403,9 +403,18 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+
+	var allowedOrigins = map[string]bool{
+		"http://localhost:5173":              true,
+		"https://gobank-frontend.vercel.app": true,
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		origin := r.Header.Get("Origin")
+		if allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
