@@ -34,21 +34,21 @@ type PostgresStore struct {
 func NewPostgresStore() (*PostgresStore, error) {
 	fmt.Println("Init DB gobank")
 
-	/* 	appEnv := os.Getenv("APP_ENV")
-	   	fmt.Println(appEnv)
-	   	if appEnv == "development" {
-	   		// Load .env file in development environment
-	   		err := godotenv.Load()
-	   		if err != nil {
-	   			log.Fatal("Error loading .env file")
-	   		}
-	   	} */
+	appEnv := os.Getenv("APP_ENV")
+	fmt.Println(appEnv)
+	if appEnv == "development" {
+		// Load .env file in development environment
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
+	}
 
 	// Load .env file in development environment
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	/* 	err := godotenv.Load()
+	   	if err != nil {
+	   		log.Fatal("Error loading .env file")
+	   	} */
 
 	host := os.Getenv("DB_HOST")
 	port, enverr := strconv.Atoi(os.Getenv("DB_PORT"))
