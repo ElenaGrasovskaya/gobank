@@ -350,10 +350,11 @@ func setSession(userId int, userEmail string, response http.ResponseWriter) {
 	} else {
 
 		cookie := &http.Cookie{
-			Name:   "token",
-			Value:  tokenString,
-			Path:   "/",
-			MaxAge: 1600,
+			Name:     "token",
+			Value:    tokenString,
+			Path:     "/",
+			MaxAge:   1600,
+			SameSite: http.SameSiteStrictMode,
 		}
 		fmt.Println("token created")
 		http.SetCookie(response, cookie)
