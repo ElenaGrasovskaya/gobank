@@ -29,8 +29,10 @@ func (s *APIServer) Run() {
 
 	// Defining routes
 	router.HandleFunc("/login", makeHTTPHandleFunc(s.handleLogin)).Methods(http.MethodPost)
+	router.HandleFunc("/expense/{id}", withJWTAuth(makeHTTPHandleFunc(s.handleUpdateExpense), s.store)).Methods(http.MethodPost)
 	router.HandleFunc("/expense", withJWTAuth(makeHTTPHandleFunc(s.handleCreateExpense), s.store)).Methods(http.MethodPost)
 	router.HandleFunc("/expense", withJWTAuth(makeHTTPHandleFunc(s.handleGetExpenseForUser), s.store)).Methods(http.MethodGet)
+	router.HandleFunc("/expense/{id}", withJWTAuth(makeHTTPHandleFunc(s.handleDeleteExpense), s.store)).Methods(http.MethodDelete)
 	router.HandleFunc("/expenses", makeHTTPHandleFunc(s.handleGetAllExpense)).Methods(http.MethodGet)
 	router.HandleFunc("/register", makeHTTPHandleFunc(s.handleRegister)).Methods(http.MethodPost)
 	router.HandleFunc("/logout", makeHTTPHandleFunc(s.handleLogout)).Methods(http.MethodPost)
@@ -153,7 +155,7 @@ func (s *APIServer) handleCreateExpense(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	expense, err := NewExpense(userId, createExpenseRequest.ExpenseName, createExpenseRequest.ExpensePurpose, createExpenseRequest.ExpenseValue)
+	expense, err := NewExpense(userId, createExpenseRequest.ExpenseName, createExpenseRequest.ExpensePurpose, createExpenseRequest.ExpenseCategory, createExpenseRequest.ExpenseValue)
 	if err != nil {
 		return err
 	}
@@ -163,6 +165,42 @@ func (s *APIServer) handleCreateExpense(w http.ResponseWriter, r *http.Request) 
 	}
 
 	return WriteJSON(w, http.StatusOK, expense)
+}
+
+func (s *APIServer) handleUpdateExpense(w http.ResponseWriter, r *http.Request) error {
+	updateExpenseRequest := new(UpdateExpenseRequest)
+
+	if err := json.NewDecoder(r.Body).Decode(updateExpenseRequest); err != nil {
+		return err
+	}
+
+	id, err := getId(r)
+	if err != nil {
+		return err
+	}
+
+	expense, err := UpdatedExpense(updateExpenseRequest.UserId, updateExpenseRequest.ExpenseName, updateExpenseRequest.ExpensePurpose, updateExpenseRequest.ExpenseCategory, updateExpenseRequest.ExpenseValue, updateExpenseRequest.CreatedAt)
+	if err != nil {
+		return err
+	}
+
+	if err := s.store.UpdateExpense(id, expense); err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, expense)
+}
+
+func (s *APIServer) handleDeleteExpense(w http.ResponseWriter, r *http.Request) error {
+	id, err := getId(r)
+	if err != nil {
+		return err
+	}
+
+	if err := s.store.DeleteExpense(id); err != nil {
+		return err
+	}
+	return WriteJSON(w, http.StatusOK, map[string]int{"deleted": id})
 }
 
 //AUTHORIZATION SERVICES**********************************************************
@@ -413,10 +451,11 @@ func corsMiddleware(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		if allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		}
 		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
 		// Check if it's a preflight request
 		if r.Method == "OPTIONS" {
