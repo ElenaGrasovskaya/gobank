@@ -34,21 +34,21 @@ type PostgresStore struct {
 func NewPostgresStore() (*PostgresStore, error) {
 	fmt.Println("Init DB gobank")
 
-	/* 	appEnv := os.Getenv("APP_ENV")
-	   	fmt.Println(appEnv)
-	   	if appEnv == "development" {
-	   		// Load .env file in development environment
-	   		err := godotenv.Load()
-	   		if err != nil {
-	   			log.Fatal("Error loading .env file")
-	   		}
-	   	} */
+	appEnv := os.Getenv("APP_ENV")
+	fmt.Println(appEnv)
+	if appEnv == "development" {
+		// Load .env file in development environment
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
+	}
 
 	// Load .env file in development environment
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	/* 	err := godotenv.Load()
+	   	if err != nil {
+	   		log.Fatal("Error loading .env file")
+	   	} */
 
 	host := os.Getenv("DB_HOST")
 	port, enverr := strconv.Atoi(os.Getenv("DB_PORT"))
@@ -184,31 +184,6 @@ func (s *PostgresStore) DeleteExpense(id int) error {
 
 	return err
 }
-
-/* func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
-	query := `
-	update expense
-    SET expense_name = $1, expense_purpose = $2, expense_category = $3, expense_value = $4, updated_at = $5
-    WHERE id = $6
-	values ($1, $2, $3, $4, $5, $6)
-	`
-	resp, err := s.db.Query(
-		query,
-		newExp.ExpenseName,
-		newExp.ExpensePurpose,
-		newExp.ExpenseCategory,
-		newExp.ExpenseValue,
-		newExp.UpdatedAt,
-		id,
-	)
-
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%+v\n", resp)
-	return nil
-} */
 
 func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
 	fmt.Printf("New data for Expense %v", newExp)
