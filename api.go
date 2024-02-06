@@ -355,6 +355,7 @@ func setSession(userId int, userEmail string, response http.ResponseWriter) {
 			Path:     "/",
 			MaxAge:   1600,
 			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		}
 		fmt.Println("token created")
 		http.SetCookie(response, cookie)
