@@ -450,8 +450,10 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 func corsMiddleware(next http.Handler) http.Handler {
 
 	var allowedOrigins = map[string]bool{
-		"http://localhost:5173":              true,
-		"https://gobank-frontend.vercel.app": true,
+		"http://localhost:5173":                      true,
+		"http://localhost:5173/expense":              true,
+		"https://gobank-frontend.vercel.app":         true,
+		"https://gobank-frontend.vercel.app/expense": true,
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
