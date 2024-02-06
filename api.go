@@ -93,16 +93,19 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	if err := s.store.CreateAccount(account); err != nil {
+	newAcc, err := s.store.CreateAccount(account)
+
+	if err != nil {
 		return err
 	}
-	tokenString, err := createJWT(account)
+
+	tokenString, err := createJWT(newAcc)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("JWT token: %v", tokenString)
-	return WriteJSON(w, http.StatusOK, account)
+	return WriteJSON(w, http.StatusOK, newAcc)
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
@@ -160,11 +163,12 @@ func (s *APIServer) handleCreateExpense(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	if err := s.store.CreateExpense(expense); err != nil {
+	newExp, err := s.store.CreateExpense(expense)
+	if err != nil {
 		return err
 	}
 
-	return WriteJSON(w, http.StatusOK, expense)
+	return WriteJSON(w, http.StatusOK, newExp)
 }
 
 func (s *APIServer) handleUpdateExpense(w http.ResponseWriter, r *http.Request) error {
@@ -215,7 +219,7 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	account, err := s.store.GetAccountByEmail(req.Email)
 	if err != nil {
 		clearSession(w)
-		return WriteJSON(w, http.StatusExpectationFailed, req)
+		return WriteJSON(w, http.StatusExpectationFailed, err)
 	}
 
 	comparePass, err := EncrPassword(req.Password, account.Password)
@@ -228,11 +232,11 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	if comparePass {
 		account, err := s.store.GetAccountByEmail(req.Email)
 		if err != nil {
-			return WriteJSON(w, http.StatusBadRequest, req)
+			return WriteJSON(w, http.StatusBadRequest, err)
 		}
 		setSession(account.ID, req.Email, w)
 
-		return WriteJSON(w, http.StatusAccepted, req)
+		return WriteJSON(w, http.StatusOK, "User logged in")
 	}
 
 	return WriteJSON(w, http.StatusBadRequest, comparePass)
@@ -251,10 +255,11 @@ func (s *APIServer) handleRegister(w http.ResponseWriter, r *http.Request) error
 
 	existAccount, err := s.store.GetAccountByEmail(createAccountRequest.Email)
 	if err != nil {
-		if err := s.store.CreateAccount(account); err != nil {
+		newAcc, err := s.store.CreateAccount(account)
+		if err != nil {
 			return err
 		}
-		return WriteJSON(w, http.StatusAccepted, account)
+		return WriteJSON(w, http.StatusAccepted, newAcc)
 	} else {
 		return WriteJSON(w, http.StatusConflict, existAccount)
 	}

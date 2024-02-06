@@ -13,14 +13,14 @@ import (
 )
 
 type Storage interface {
-	CreateAccount(*Account) error
+	CreateAccount(*Account) (*Account, error)
 	DeleteAccount(int) error
 	UpdateAccount(*Account) error
 	GetAccounts() ([]*Account, error)
 	GetAccountById(int) (*Account, error)
 	GetAccountByEmail(string) (*Account, error)
 
-	CreateExpense(*Expense) error
+	CreateExpense(*Expense) (*Expense, error)
 	UpdateExpense(int, *Expense) error
 	DeleteExpense(int) error
 	GetExpenseForUser(int) ([]*Expense, error)
@@ -44,12 +44,12 @@ func NewPostgresStore() (*PostgresStore, error) {
 		}
 	}
 
-	// Load .env file in development environment
-	/* 	err := godotenv.Load()
-	   	if err != nil {
-	   		log.Fatal("Error loading .env file")
-	   	} */
-
+	/* // Load .env file in development environment
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	*/
 	host := os.Getenv("DB_HOST")
 	port, enverr := strconv.Atoi(os.Getenv("DB_PORT"))
 	user := os.Getenv("DB_USER")
@@ -116,14 +116,15 @@ func (s *PostgresStore) CreateTables() error {
 	return err
 }
 
-func (s *PostgresStore) CreateAccount(acc *Account) error {
-
+func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
 	query := `
-	insert into account
-	(first_name, last_name, email, password, number, balance, created_at)
-	values ($1, $2, $3, $4, $5, $6, $7)
-	`
-	resp, err := s.db.Query(
+    INSERT INTO account
+    (first_name, last_name, email, password, number, balance, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING id;`
+
+	var id int
+	err := s.db.QueryRow(
 		query,
 		acc.FirstName,
 		acc.LastName,
@@ -132,24 +133,25 @@ func (s *PostgresStore) CreateAccount(acc *Account) error {
 		acc.Number,
 		acc.Balance,
 		acc.CreatedAt,
-	)
+	).Scan(&id)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	fmt.Printf("%+v\n", resp)
-	return nil
+	acc.ID = id
+	return acc, nil
 }
 
-func (s *PostgresStore) CreateExpense(exp *Expense) error {
-
+func (s *PostgresStore) CreateExpense(exp *Expense) (*Expense, error) {
 	query := `
-	insert into expense
-	(user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, updated_at)
-	values ($1, $2, $3, $4, $5, $6, $7)
-	`
-	resp, err := s.db.Query(
+    INSERT INTO expense
+    (user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING id; `
+
+	var id int
+	err := s.db.QueryRow(
 		query,
 		exp.UserId,
 		exp.ExpenseName,
@@ -158,14 +160,15 @@ func (s *PostgresStore) CreateExpense(exp *Expense) error {
 		exp.ExpenseValue,
 		exp.CreatedAt,
 		exp.UpdatedAt,
-	)
+	).Scan(&id)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	fmt.Printf("%+v\n", resp)
-	return nil
+	exp.ID = id
+
+	return exp, nil
 }
 
 func (s *PostgresStore) UpdateAccount(*Account) error {
@@ -189,8 +192,8 @@ func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
 	fmt.Printf("New data for Expense %v", newExp)
 	query := `
     UPDATE expense
-    SET expense_name = $1, expense_purpose = $2, expense_category = $3, expense_value = $4, updated_at = NOW()
-    WHERE id = $5
+    SET expense_name = $1, expense_purpose = $2, expense_category = $3, expense_value = $4, updated_at = $5
+    WHERE id = $6
     `
 	result, err := s.db.Exec(
 		query,
@@ -198,6 +201,7 @@ func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
 		newExp.ExpensePurpose,
 		newExp.ExpenseCategory,
 		newExp.ExpenseValue,
+		newExp.UpdatedAt,
 		id,
 	)
 
