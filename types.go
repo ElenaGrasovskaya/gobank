@@ -7,11 +7,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type TransferRequest struct {
-	ToAccount int `json: "toAccount"`
-	Ammount   int `json: "ammount"`
-}
-
 type CreateAccountRequest struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
@@ -20,15 +15,14 @@ type CreateAccountRequest struct {
 }
 
 type CreateExpenseRequest struct {
-	UserId          int     `json:"user_id"`
-	ExpenseName     string  `json:"expense_name"`
-	ExpensePurpose  string  `json:"expense_purpose"`
-	ExpenseCategory string  `json:"expense_category"`
-	ExpenseValue    float32 `json:"expense_value"`
+	ExpenseName     string    `json:"expense_name"`
+	ExpensePurpose  string    `json:"expense_purpose"`
+	ExpenseCategory string    `json:"expense_category"`
+	ExpenseValue    float32   `json:"expense_value"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type UpdateExpenseRequest struct {
-	UserId          int       `json:"user_id"`
 	ExpenseName     string    `json:"expense_name"`
 	ExpensePurpose  string    `json:"expense_purpose"`
 	ExpenseCategory string    `json:"expense_category"`
@@ -39,6 +33,13 @@ type UpdateExpenseRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type LoginReasponce struct {
+	ID        int    `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
 }
 
 type Account struct {
@@ -59,8 +60,8 @@ type Expense struct {
 	ExpensePurpose  string    `json:"expense_purpose"`
 	ExpenseCategory string    `json:"expense_category"`
 	ExpenseValue    float32   `json:"expense_value"`
-	UpdatedAt       time.Time `json:"createdAt"`
-	CreatedAt       time.Time `json:"updatedAt"`
+	CreatedAt       time.Time `json:"updated_at"`
+	UpdatedAt       time.Time `json:"created_at"`
 }
 
 func NewAccount(firstName, lastName, email, password string) (*Account, error) {
@@ -79,26 +80,38 @@ func NewAccount(firstName, lastName, email, password string) (*Account, error) {
 	}, nil
 }
 
-func NewExpense(userId int, expenseName, expensePurpose, expenseCategory string, expenseValue float32) (*Expense, error) {
-	return &Expense{
-		UserId:          userId,
-		ExpenseName:     expenseName,
-		ExpensePurpose:  expensePurpose,
-		ExpenseCategory: expenseCategory,
-		ExpenseValue:    expenseValue,
-		CreatedAt:       time.Now().UTC(),
-		UpdatedAt:       time.Now().UTC(),
-	}, nil
-}
+func NewExpense(userId int, expenseName, expensePurpose, expenseCategory string, expenseValue float32, createdAt time.Time) (*Expense, error) {
 
-func UpdatedExpense(userId int, expenseName, expensePurpose, expenseCategory string, expenseValue float32, createdAt time.Time) (*Expense, error) {
+	/* 	requestDate, err := time.Parse("Mon Jan 02 15:04:05 -0700 2006", createdAt)
+	   	if err != nil {
+	   		return nil, err
+	   	} */
 	return &Expense{
+		ID:              0,
 		UserId:          userId,
 		ExpenseName:     expenseName,
 		ExpensePurpose:  expensePurpose,
 		ExpenseCategory: expenseCategory,
 		ExpenseValue:    expenseValue,
 		CreatedAt:       createdAt,
-		UpdatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now(),
+	}, nil
+}
+
+func UpdatedExpense(id, userId int, expenseName, expensePurpose, expenseCategory string, expenseValue float32, createdAt time.Time) (*Expense, error) {
+	/*
+		requestDate, err := time.Parse("Mon Jan 02 15:04:05 -0700 2006", createdAt)
+		if err != nil {
+			return nil, err
+		} */
+	return &Expense{
+		ID:              id,
+		UserId:          userId,
+		ExpenseName:     expenseName,
+		ExpensePurpose:  expensePurpose,
+		ExpenseCategory: expenseCategory,
+		ExpenseValue:    expenseValue,
+		CreatedAt:       createdAt,
+		UpdatedAt:       time.Now(),
 	}, nil
 }

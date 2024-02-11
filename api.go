@@ -153,15 +153,19 @@ func (s *APIServer) handleCreateExpense(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
+	fmt.Printf("Request %v /n", createExpenseRequest)
+
 	userId, err := getIdFromCookie(w, r)
 	if err != nil {
 		return err
 	}
 
-	expense, err := NewExpense(userId, createExpenseRequest.ExpenseName, createExpenseRequest.ExpensePurpose, createExpenseRequest.ExpenseCategory, createExpenseRequest.ExpenseValue)
+	expense, err := NewExpense(userId, createExpenseRequest.ExpenseName, createExpenseRequest.ExpensePurpose, createExpenseRequest.ExpenseCategory, createExpenseRequest.ExpenseValue, createExpenseRequest.CreatedAt)
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("Prepared new expense %v /n", expense)
 
 	newExp, err := s.store.CreateExpense(expense)
 	if err != nil {
@@ -183,7 +187,12 @@ func (s *APIServer) handleUpdateExpense(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	expense, err := UpdatedExpense(updateExpenseRequest.UserId, updateExpenseRequest.ExpenseName, updateExpenseRequest.ExpensePurpose, updateExpenseRequest.ExpenseCategory, updateExpenseRequest.ExpenseValue, updateExpenseRequest.CreatedAt)
+	userId, err := getIdFromCookie(w, r)
+	if err != nil {
+		return err
+	}
+
+	expense, err := UpdatedExpense(id, userId, updateExpenseRequest.ExpenseName, updateExpenseRequest.ExpensePurpose, updateExpenseRequest.ExpenseCategory, updateExpenseRequest.ExpenseValue, updateExpenseRequest.CreatedAt)
 	if err != nil {
 		return err
 	}
@@ -235,8 +244,14 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 			return WriteJSON(w, http.StatusBadRequest, err)
 		}
 		setSession(account.ID, req.Email, w)
+		userResponce := LoginReasponce{
+			ID:        account.ID,
+			FirstName: account.FirstName,
+			LastName:  account.LastName,
+			Email:     account.Email,
+		}
 
-		return WriteJSON(w, http.StatusOK, "User logged in")
+		return WriteJSON(w, http.StatusOK, userResponce)
 	}
 
 	return WriteJSON(w, http.StatusBadRequest, comparePass)
@@ -253,7 +268,7 @@ func (s *APIServer) handleRegister(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	existAccount, err := s.store.GetAccountByEmail(createAccountRequest.Email)
+	existAccont, err := s.store.GetAccountByEmail(createAccountRequest.Email)
 	if err != nil {
 		newAcc, err := s.store.CreateAccount(account)
 		if err != nil {
@@ -261,15 +276,16 @@ func (s *APIServer) handleRegister(w http.ResponseWriter, r *http.Request) error
 		}
 		return WriteJSON(w, http.StatusAccepted, newAcc)
 	} else {
-		return WriteJSON(w, http.StatusConflict, existAccount)
+		accountEmail := existAccont.Email
+		return WriteJSON(w, http.StatusConflict, "Account "+accountEmail+" already exists")
 	}
 
 }
 
 func (s *APIServer) handleLogout(w http.ResponseWriter, r *http.Request) error {
-
+	fmt.Printf("Logging out")
 	clearSession(w)
-	return WriteJSON(w, http.StatusLocked, "User Logged Out")
+	return WriteJSON(w, http.StatusOK, "User Logged Out")
 }
 
 func createJWT(account *Account) (string, error) {
@@ -353,7 +369,7 @@ func setSession(userId int, userEmail string, response http.ResponseWriter) {
 			Name:     "token",
 			Value:    tokenString,
 			Path:     "/",
-			MaxAge:   1600,
+			MaxAge:   30 * 24 * 60 * 60,
 			SameSite: http.SameSiteNoneMode,
 			Secure:   true,
 		}
