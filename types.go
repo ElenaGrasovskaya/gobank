@@ -35,7 +35,7 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-type LoginReasponce struct {
+type LoginResponse struct {
 	ID        int    `json:"id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
