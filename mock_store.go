@@ -1,15 +1,53 @@
 package main
 
 import (
+	"database/sql"
+	"fmt"
+	"os"
+	"strconv"
+
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/mock"
+
+	_ "github.com/lib/pq"
 )
 
 // MockStore is a mock type for the Storage interface
+
+func NewTestPostgresStore() (*PostgresStore, error) {
+
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Error loading .env file")
+	}
+	host := os.Getenv("TEST_DB_HOST")
+	port, _ := strconv.Atoi(os.Getenv("TEST_DB_PORT"))
+	user := os.Getenv("TEST_DB_USER")
+	password := os.Getenv("TEST_DB_PASSWORD")
+	dbname := os.Getenv("TEST_DB_NAME")
+
+	// Connection string
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=require", host, port, user, password, dbname)
+
+	// Open database connection
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check the connection
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	// Return a new instance of your real store configured for the test database
+	return &PostgresStore{db: db}, nil
+}
+
 type MockStore struct {
 	mock.Mock
 }
 
-// Define methods for each interface method
 func (m *MockStore) CreateAccount(acc *Account) (*Account, error) {
 	args := m.Called(acc)
 	return args.Get(0).(*Account), args.Error(1)
@@ -34,6 +72,7 @@ func (m *MockStore) GetAccountById(id int) (*Account, error) {
 }
 
 func (m *MockStore) GetAccountByEmail(email string) (*Account, error) {
+
 	args := m.Called(email)
 	return args.Get(0).(*Account), args.Error(1)
 }
