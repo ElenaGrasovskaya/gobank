@@ -41,24 +41,29 @@ func (s *APIServer) handleGetAccount(c *gin.Context) {
 
 func (s *APIServer) handleGetAccountById(c *gin.Context) {
 
-	if c.Request.Method == "GET" {
-		id, err := getId(c)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"Could not load the data from request": err.Error()})
-			return
-		}
-		account, err := s.store.GetAccountById(id)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"Could not load the data from request": err.Error()})
-			return
-		}
-		fmt.Println(id)
-		c.JSON(http.StatusOK, account)
+	id, err := getId(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"Could not load the data from request": err.Error()})
+		return
 	}
-	if c.Request.Method == "DELETE" {
-		s.handleDeleteAccount(c)
+
+	account, err := s.store.GetAccountById(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"Could not load the data from request": err.Error()})
+		return
 	}
-	c.JSON(http.StatusMethodNotAllowed, gin.H{"Method not allowed": "Error"})
+
+	var responceAccount = ResponceAccount{
+		ID:        account.ID,
+		FirstName: account.FirstName,
+		LastName:  account.LastName,
+		Email:     account.Email,
+		Balance:   account.Balance,
+		CreatedAt: account.CreatedAt,
+	}
+
+	fmt.Println(id)
+	c.JSON(http.StatusOK, responceAccount)
 }
 
 func (s *APIServer) handleCreateAccount(c *gin.Context) {
@@ -93,10 +98,21 @@ func (s *APIServer) handleCreateAccount(c *gin.Context) {
 func (s *APIServer) handleDeleteAccount(c *gin.Context) {
 	id, err := getId(c)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"Invalid account number": err.Error()})
+		return
+	}
+
+	account, err := s.store.GetAccountById(id)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not delete an account": err.Error()})
 		return
 	}
 
+	if account.Status == "Deleted" {
+		c.JSON(http.StatusBadRequest, gin.H{"This accout was already deleted": account.ID})
+		return
+	}
+	fmt.Printf("After check %v", account.Status)
 	if err := s.store.DeleteAccount(id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not delete an account": err.Error()})
 	}
@@ -192,6 +208,7 @@ func (s *APIServer) handleUpdateExpense(c *gin.Context) {
 	}
 
 	if err := s.store.UpdateExpense(id, expense); err != nil {
+		fmt.Printf("%v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update expense"})
 		return
 	}
@@ -202,7 +219,13 @@ func (s *APIServer) handleUpdateExpense(c *gin.Context) {
 func (s *APIServer) handleDeleteExpense(c *gin.Context) {
 	id, err := getId(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Failed to get id from the request"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to get id from the request"})
+		return
+	}
+
+	expense, err := s.store.GetExpenseById(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to find the requested expense"})
 		return
 	}
 
@@ -210,7 +233,7 @@ func (s *APIServer) handleDeleteExpense(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete an expense"})
 		return
 	}
-	c.JSON(http.StatusOK, map[string]int{"deleted": id})
+	c.JSON(http.StatusOK, map[string]int{"deleted": expense.ID})
 }
 
 //AUTHORIZATION SERVICES**********************************************************
@@ -284,7 +307,6 @@ func (s *APIServer) handleLogout(c *gin.Context) {
 	fmt.Printf("Logging out")
 	clearSession(c)
 	c.JSON(http.StatusOK, "User logged out")
-	return
 }
 
 func createJWT(account *Account) (string, error) {
@@ -400,7 +422,7 @@ func PermissionDenied(w http.ResponseWriter) {
 }
 
 type ApiError struct {
-	Error string `json: "error"`
+	Error string `json:"error"`
 }
 
 type apiFunc func(http.ResponseWriter, *http.Request) error

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,12 +22,15 @@ func main() {
 	r := gin.Default()
 	r.Use(CorsMiddleware())
 
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
+	})
+
 	authMiddleware := WithJWTAuthMiddleware(store)
 
 	r.POST("/login", s.handleLogin)
-
-	r.POST("/logout", s.handleLogout)
 	r.POST("/register", s.handleRegister)
+	r.POST("/logout", s.handleLogout)
 
 	authGroup := r.Group("/")
 	authGroup.Use(authMiddleware)
@@ -37,9 +41,9 @@ func main() {
 		authGroup.DELETE("/expense/:id", s.handleDeleteExpense)
 		authGroup.GET("/expenses", s.handleGetAllExpense)
 
-		authGroup.GET("/account", s.handleGetAccount)
+		authGroup.GET("/accounts", s.handleGetAccount)
 		authGroup.POST("/account", s.handleCreateAccount)
-		authGroup.DELETE("/account", s.handleDeleteAccount)
+		authGroup.DELETE("/account/:id", s.handleDeleteAccount)
 		authGroup.GET("/account/:id", s.handleGetAccountById)
 	}
 	fmt.Println("JSON API server is running on port: 3000")

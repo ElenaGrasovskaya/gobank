@@ -15,6 +15,7 @@ import (
 type Storage interface {
 	CreateAccount(*Account) (*Account, error)
 	DeleteAccount(int) error
+	RestoreAccount(int) error
 	UpdateAccount(*Account) error
 	GetAccounts() ([]*Account, error)
 	GetAccountById(int) (*Account, error)
@@ -24,6 +25,7 @@ type Storage interface {
 	UpdateExpense(int, *Expense) error
 	DeleteExpense(int) error
 	GetExpenseForUser(int) ([]*Expense, error)
+	GetExpenseById(int) (*Expense, error)
 	GetAllExpense() ([]*Expense, error)
 }
 
@@ -34,22 +36,21 @@ type PostgresStore struct {
 func NewPostgresStore() (*PostgresStore, error) {
 	fmt.Println("Init DB gobank")
 
-	/* 	appEnv := os.Getenv("APP_ENV")
-	   	fmt.Println(appEnv)
-	   	if appEnv == "development" {
-	   		// Load .env file in development environment
-	   		err := godotenv.Load()
-	   		if err != nil {
-	   			log.Fatal("Error loading .env file")
-	   		}
-	   	} */
-
-	// Load .env file in development environment
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	appEnv := os.Getenv("APP_ENV")
+	fmt.Println(appEnv)
+	if appEnv == "development" {
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
 	}
 
+	// Load .env file in development environment
+	/* 	err := godotenv.Load()
+	   	if err != nil {
+	   		log.Fatal("Error loading .env file")
+	   	}
+	*/
 	host := os.Getenv("DB_HOST")
 	port, enverr := strconv.Atoi(os.Getenv("DB_PORT"))
 	user := os.Getenv("DB_USER")
@@ -97,6 +98,7 @@ func (s *PostgresStore) CreateTables() error {
 		last_name varchar(50),
 		email varchar(50),
 		password varchar(200),
+		status varchar(50),
 		number serial,
 		balance int,
 		created_at timestamp
@@ -119,8 +121,8 @@ func (s *PostgresStore) CreateTables() error {
 func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
 	query := `
     INSERT INTO account
-    (first_name, last_name, email, password, number, balance, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    (first_name, last_name, email, password, status, number, balance, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING id;`
 
 	var id int
@@ -130,6 +132,7 @@ func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
 		acc.LastName,
 		acc.Email,
 		acc.Password,
+		acc.Status,
 		acc.Number,
 		acc.Balance,
 		acc.CreatedAt,
@@ -178,7 +181,17 @@ func (s *PostgresStore) UpdateAccount(*Account) error {
 }
 
 func (s *PostgresStore) DeleteAccount(id int) error {
-	_, err := s.db.Query("delete from account where id = $1", id)
+
+	newStatus := "Deleted"
+	_, err := s.db.Query("update account set status = $2 where id = $1", id, newStatus)
+
+	return err
+}
+
+func (s *PostgresStore) RestoreAccount(id int) error {
+
+	newStatus := "Active"
+	_, err := s.db.Query("update account set status = $2 where id = $1", id, newStatus)
 
 	return err
 }
@@ -190,7 +203,7 @@ func (s *PostgresStore) DeleteExpense(id int) error {
 }
 
 func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
-	fmt.Printf("New data for Expense %v", newExp)
+
 	query := `
     UPDATE expense
     SET expense_name = $1, expense_purpose = $2, expense_category = $3, expense_value = $4, created_at = $5, updated_at = $6
@@ -214,10 +227,10 @@ func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
 	// Optional: Check how many rows were affected
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not update")
 	}
 	if affected == 0 {
-		return fmt.Errorf("No rows affected")
+		return fmt.Errorf("no rows affected")
 	}
 
 	return nil
@@ -225,7 +238,11 @@ func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
 
 func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
 
-	rows, err := s.db.Query("select id, first_name, last_name, email, password, number, balance, created_at from account where id=$1", id)
+	if id == 0 {
+		return nil, fmt.Errorf("account %d not found", id)
+	}
+
+	rows, err := s.db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account where id=$1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -237,8 +254,26 @@ func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
 	return nil, fmt.Errorf("account %d not found", id)
 }
 
+func (s *PostgresStore) GetExpenseById(id int) (*Expense, error) {
+
+	if id == 0 {
+		return nil, fmt.Errorf("expense %d not found", id)
+	}
+
+	rows, err := s.db.Query("select id, user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, created_at from expense where id=$1", id)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		return ScanIntoExpense(rows)
+	}
+
+	return nil, fmt.Errorf("expense %d not found", id)
+}
+
 func (s *PostgresStore) GetAccountByEmail(email string) (*Account, error) {
-	rows, err := s.db.Query("select id, first_name, last_name, email, password, number, balance, created_at from account where email=$1", email)
+	rows, err := s.db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account where email=$1", email)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +286,7 @@ func (s *PostgresStore) GetAccountByEmail(email string) (*Account, error) {
 }
 
 func (s *PostgresStore) GetAccounts() ([]*Account, error) {
-	rows, err := s.db.Query("select id, first_name, last_name, email, password, number, balance, created_at from account")
+	rows, err := s.db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account")
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +309,7 @@ func ScanIntoAccount(r *sql.Rows) (*Account, error) {
 		&account.LastName,
 		&account.Email,
 		&account.Password,
+		&account.Status,
 		&account.Number,
 		&account.Balance,
 		&account.CreatedAt)

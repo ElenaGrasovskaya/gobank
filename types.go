@@ -48,7 +48,18 @@ type Account struct {
 	LastName  string    `json:"last_name"`
 	Email     string    `json:"email"`
 	Password  string    `json:"password"`
+	Status    string    `json:"status"`
 	Number    int64     `json:"number"`
+	Balance   int64     `json:"balance"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type ResponceAccount struct {
+	ID        int       `json:"id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Email     string    `json:"email"`
+	Status    string    `json:"status"`
 	Balance   int64     `json:"balance"`
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -73,6 +84,7 @@ func NewAccount(firstName, lastName, email, password string) (*Account, error) {
 		FirstName: firstName,
 		LastName:  lastName,
 		Email:     email,
+		Status:    "Active",
 		Password:  string(encpw),
 		Number:    int64(rand.Intn(1000000)),
 		Balance:   0,

@@ -15,9 +15,15 @@ func TestNewAccount(t *testing.T) {
 
 }
 
-func TestNewRequest(t *testing.T) {
+func TestNewExpense(t *testing.T) {
 	acc, err := NewExpense(1, "testa", "testb", "test", 100, time.Now())
 	assert.Nil(t, err)
 
+	fmt.Printf("%v /n", acc)
+}
+
+func TestUpdatedExpense(t *testing.T) {
+	acc, err := UpdatedExpense(1, 1, "testa", "testb", "test", 100, time.Now())
+	assert.Nil(t, err)
 	fmt.Printf("%v /n", acc)
 }
