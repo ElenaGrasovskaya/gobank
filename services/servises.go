@@ -257,6 +257,7 @@ func WithJWTAuthMiddleware(s storage.Storage) gin.HandlerFunc {
 			permissionDenied(c)
 			return
 		}
+		fmt.Printf("TOKEN FROM REQUEST %v", token)
 		if !token.Valid {
 			permissionDenied(c)
 			return

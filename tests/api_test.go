@@ -20,8 +20,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ElenaGrasovskaya/gobank/account"
 	"github.com/ElenaGrasovskaya/gobank/expense"
+	"github.com/ElenaGrasovskaya/gobank/router"
 	"github.com/ElenaGrasovskaya/gobank/services"
 	"github.com/ElenaGrasovskaya/gobank/storage"
 	"github.com/ElenaGrasovskaya/gobank/types"
@@ -79,45 +79,8 @@ func InitializeTestServer() *gin.Engine {
 		log.Fatalf("Failed to initialize the test store: %v", err)
 	}
 
-	e := expense.NewExpenseHandler(store)
-	a := account.NewAccountHandler(store)
-	s := services.NewServiceHandler(store)
-
-	r := gin.Default()
-	r.Use(services.CorsMiddleware())
-
-	r.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
-	})
-
-	authMiddleware := services.WithJWTAuthMiddleware(store)
-
-	r.GET("/", s.HandleHealth)
-	r.POST("/login", s.HandleLogin)
-	r.POST("/register", s.HandleRegister)
-	r.POST("/logout", s.HandleLogout)
-
-	authGroup := r.Group("/")
-	authGroup.Use(authMiddleware)
-	{
-		authGroup.POST("/expense", e.HandleCreateExpense)
-		authGroup.POST("/expense/:id", e.HandleUpdateExpense)
-		authGroup.GET("/expense", e.HandleGetExpenseForUser)
-		authGroup.DELETE("/expense/:id", e.HandleDeleteExpense)
-		authGroup.GET("/expenses", e.HandleGetAllExpense)
-
-		authGroup.GET("/accounts", a.HandleGetAccount)
-		authGroup.POST("/account", a.HandleCreateAccount)
-		authGroup.DELETE("/account/:id", a.HandleDeleteAccount)
-		authGroup.GET("/account/:id", a.HandleGetAccountById)
-	}
+	r := router.SetupRouter(store)
 	return r
-}
-func TestHealth(t *testing.T) {
-	c := http.Client{}
-
-	r, _ := c.Get("http://localhost:3000")
-	assert.Equal(t, "200 OK", r.Status, "Expected 200 got %v", r.Status)
 }
 
 func TestHandleLogin(t *testing.T) {
@@ -481,7 +444,7 @@ func TestHandleCreateExpense(t *testing.T) {
 
 	body, err := json.Marshal(expenseData)
 	if err != nil {
-		t.Fatalf("Failed to marshal login data: %v", err)
+		t.Fatalf("Failed to marshal request data: %v", err)
 	}
 	// Test 1: Not authorized request
 
@@ -508,7 +471,7 @@ func TestHandleCreateExpense(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "Expected status code 404")
 }
 
-/* func TestHandleUpdateExpense(t *testing.T) {
+func TestHandleUpdateExpense(t *testing.T) {
 	router := InitializeTestServer()
 	newExpenseData := &types.Expense{
 		UserId:          7,
@@ -520,7 +483,9 @@ func TestHandleCreateExpense(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
-	newExp, err := store.CreateExpense(newExpenseData)
+	e := expense.NewExpenseHandler(store)
+
+	newExp, err := e.CreateExpense(newExpenseData)
 
 	editId := newExp.ID
 
@@ -562,7 +527,7 @@ func TestHandleCreateExpense(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code, "Expected status code 404")
 }
-*/
+
 /* func TestHandleDeleteExpense(t *testing.T) {
 	router := InitializeTestServer()
 
