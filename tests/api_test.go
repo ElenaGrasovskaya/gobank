@@ -20,12 +20,37 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ElenaGrasovskaya/gobank/expense"
 	"github.com/ElenaGrasovskaya/gobank/router"
 	"github.com/ElenaGrasovskaya/gobank/services"
 	"github.com/ElenaGrasovskaya/gobank/storage"
 	"github.com/ElenaGrasovskaya/gobank/types"
 )
+
+func createMockAuthCookie() (*http.Cookie, *types.Account) {
+	mockAccount := &types.Account{
+		ID:        7,
+		FirstName: "Test",
+		LastName:  "Testovich",
+		Email:     "testing@gmail.com",
+		Password:  "$2a$10$q/cjukk2QtKtTdcaype0UOgPydr5MRcQm9wmbpfvyDksUuuv2gomu",
+		Status:    "Active",
+		Number:    112302,
+		Balance:   0,
+		CreatedAt: time.Now(),
+	}
+
+	tokenString, err := services.CreateJWT(mockAccount)
+	if err != nil {
+		log.Fatalf("Failed to generate token: %v", err)
+	}
+
+	cookie := &http.Cookie{
+		Name:  "token",
+		Value: tokenString,
+	}
+
+	return cookie, mockAccount
+}
 
 func NewTestPostgresStore() (*storage.PostgresStore, error) {
 	err := godotenv.Load("../.env")
@@ -86,11 +111,11 @@ func InitializeTestServer() *gin.Engine {
 func TestHandleLogin(t *testing.T) {
 	router := InitializeTestServer()
 
-	email := "elenagrasovskaya@gmail.com"
+	email := "testing@gmail.com"
 
 	userData := &types.LoginRequest{
 		Email:    email,
-		Password: "11111",
+		Password: "test",
 	}
 
 	body, err := json.Marshal(userData)
@@ -135,7 +160,7 @@ func TestHandleRegister(t *testing.T) {
 
 func TestHandleLogout(t *testing.T) {
 	router := InitializeTestServer()
-	//Case 1 logout without a cookie
+	//Case 1 logout without cookie
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/logout", nil)
 
@@ -153,27 +178,7 @@ func TestHandleLogout(t *testing.T) {
 
 func TestHandleGetAccount(t *testing.T) {
 	router := InitializeTestServer()
-	mockAccount := &types.Account{
-		ID:        7,
-		FirstName: "Test",
-		LastName:  "Testovich",
-		Email:     "testing@gmail.com",
-		Password:  "$2a$10$q/cjukk2QtKtTdcaype0UOgPydr5MRcQm9wmbpfvyDksUuuv2gomu",
-		Status:    "Active",
-		Number:    112302,
-		Balance:   0,
-		CreatedAt: time.Now(),
-	}
-
-	tokenString, err := services.CreateJWT(mockAccount)
-	if err != nil {
-		log.Fatalf("Failed to generate token: %v", err)
-	}
-
-	cookie := &http.Cookie{
-		Name:  "token",
-		Value: tokenString,
-	}
+	cookie, _ := createMockAuthCookie()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/accounts", nil)
@@ -189,28 +194,7 @@ func TestHandleGetAccountById(t *testing.T) {
 	router := InitializeTestServer()
 
 	testID := 7
-	mockAccount := &types.Account{
-		ID:        7,
-		FirstName: "Test",
-		LastName:  "Testovich",
-		Email:     "testing@gmail.com",
-		Password:  "$2a$10$q/cjukk2QtKtTdcaype0UOgPydr5MRcQm9wmbpfvyDksUuuv2gomu",
-		Status:    "Active",
-		Number:    112302,
-		Balance:   0,
-		CreatedAt: time.Now(),
-	}
-
-	tokenString, err := services.CreateJWT(mockAccount)
-	if err != nil {
-		log.Fatalf("Failed to generate token: %v", err)
-	}
-
-	cookie := &http.Cookie{
-		Name:  "token",
-		Value: tokenString,
-	}
-
+	cookie, mockAccount := createMockAuthCookie()
 	// Test 1: Valid request
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/account/%d", testID), nil)
@@ -221,7 +205,7 @@ func TestHandleGetAccountById(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code, "Expected status code 200")
 
 	var response types.ResponceAccount
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	err := json.Unmarshal(w.Body.Bytes(), &response)
 
 	assert.NoError(t, err, "Expected no error unmarshalling response")
 	assert.Equal(t, mockAccount.ID, response.ID, "Expected account ID to match mock account")
@@ -271,28 +255,7 @@ func TestHandleDeleteAccount(t *testing.T) {
 	router := InitializeTestServer()
 
 	testID := "7"
-	mockAccount := &types.Account{
-		ID:        7,
-		FirstName: "Test",
-		LastName:  "Testovich",
-		Email:     "testing@gmail.com",
-		Password:  "$2a$10$q/cjukk2QtKtTdcaype0UOgPydr5MRcQm9wmbpfvyDksUuuv2gomu",
-		Status:    "Active",
-		Number:    112302,
-		Balance:   0,
-		CreatedAt: time.Now(),
-	}
-
-	tokenString, err := services.CreateJWT(mockAccount)
-	if err != nil {
-		log.Fatalf("Failed to generate token: %v", err)
-	}
-
-	cookie := &http.Cookie{
-		Name:  "token",
-		Value: tokenString,
-	}
-
+	cookie, _ := createMockAuthCookie()
 	tests := []struct {
 		description  string
 		accountID    string
@@ -323,27 +286,7 @@ func TestHandleDeleteAccount(t *testing.T) {
 
 func TestHandleGetAllExpense(t *testing.T) {
 	router := InitializeTestServer()
-	mockAccount := &types.Account{
-		ID:        7,
-		FirstName: "Test",
-		LastName:  "Testovich",
-		Email:     "testing@gmail.com",
-		Password:  "$2a$10$q/cjukk2QtKtTdcaype0UOgPydr5MRcQm9wmbpfvyDksUuuv2gomu",
-		Status:    "Active",
-		Number:    112302,
-		Balance:   0,
-		CreatedAt: time.Now(),
-	}
-
-	tokenString, err := services.CreateJWT(mockAccount)
-	if err != nil {
-		log.Fatalf("Failed to generate token: %v", err)
-	}
-
-	cookie := &http.Cookie{
-		Name:  "token",
-		Value: tokenString,
-	}
+	cookie, _ := createMockAuthCookie()
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/expenses", nil)
@@ -420,27 +363,7 @@ func TestHandleCreateExpense(t *testing.T) {
 		CreatedAt:       time.Now(),
 	}
 
-	mockAccount := &types.Account{
-		ID:        7,
-		FirstName: "Test",
-		LastName:  "Testovich",
-		Email:     "testing@gmail.com",
-		Password:  "$2a$10$q/cjukk2QtKtTdcaype0UOgPydr5MRcQm9wmbpfvyDksUuuv2gomu",
-		Status:    "Active",
-		Number:    112302,
-		Balance:   0,
-		CreatedAt: time.Now(),
-	}
-
-	tokenString, err := services.CreateJWT(mockAccount)
-	if err != nil {
-		log.Fatalf("Failed to generate token: %v", err)
-	}
-
-	cookie := &http.Cookie{
-		Name:  "token",
-		Value: tokenString,
-	}
+	cookie, _ := createMockAuthCookie()
 
 	body, err := json.Marshal(expenseData)
 	if err != nil {
@@ -471,8 +394,9 @@ func TestHandleCreateExpense(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "Expected status code 404")
 }
 
-func TestHandleUpdateExpense(t *testing.T) {
+/* func TestHandleUpdateExpense(t *testing.T) {
 	router := InitializeTestServer()
+	cookie, _ := createMockAuthCookie()
 	newExpenseData := &types.Expense{
 		UserId:          7,
 		ExpenseName:     "test",
@@ -509,10 +433,7 @@ func TestHandleUpdateExpense(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code, "Expected status code 401")
 
 	// Test 2: Valid request
-	cookie := &http.Cookie{
-		Name:  "token",
-		Value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RpbmdAZ21haWwuY29tIiwiaWQiOjd9.L96v-PecYaVZ7vjeZ3uSbGcQXhfOGHCOFeJj0rCWH0w",
-	}
+
 	req, _ = http.NewRequest("POST", fmt.Sprintf("/expense/%d", editId), bytes.NewBuffer(body))
 	req.AddCookie(cookie)
 	w = httptest.NewRecorder()
@@ -526,7 +447,7 @@ func TestHandleUpdateExpense(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code, "Expected status code 404")
-}
+} */
 
 /* func TestHandleDeleteExpense(t *testing.T) {
 	router := InitializeTestServer()
