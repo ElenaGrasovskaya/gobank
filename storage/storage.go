@@ -1,4 +1,4 @@
-package main
+package storage
 
 import (
 	"database/sql"
@@ -7,30 +7,31 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/ElenaGrasovskaya/gobank/types"
 	"github.com/joho/godotenv"
 
 	_ "github.com/lib/pq"
 )
 
 type Storage interface {
-	CreateAccount(*Account) (*Account, error)
+	CreateAccount(*types.Account) (*types.Account, error)
 	DeleteAccount(int) error
 	RestoreAccount(int) error
-	UpdateAccount(*Account) error
-	GetAccounts() ([]*Account, error)
-	GetAccountById(int) (*Account, error)
-	GetAccountByEmail(string) (*Account, error)
+	UpdateAccount(*types.Account) error
+	GetAccounts() ([]*types.Account, error)
+	GetAccountById(int) (*types.Account, error)
+	GetAccountByEmail(string) (*types.Account, error)
 
-	CreateExpense(*Expense) (*Expense, error)
-	UpdateExpense(int, *Expense) error
+	CreateExpense(*types.Expense) (*types.Expense, error)
+	UpdateExpense(int, *types.Expense) error
 	DeleteExpense(int) error
-	GetExpenseForUser(int) ([]*Expense, error)
-	GetExpenseById(int) (*Expense, error)
-	GetAllExpense() ([]*Expense, error)
+	GetExpenseForUser(int) ([]*types.Expense, error)
+	GetExpenseById(int) (*types.Expense, error)
+	GetAllExpense() ([]*types.Expense, error)
 }
 
 type PostgresStore struct {
-	db *sql.DB
+	Db *sql.DB
 }
 
 func NewPostgresStore() (*PostgresStore, error) {
@@ -49,8 +50,8 @@ func NewPostgresStore() (*PostgresStore, error) {
 	/* 	err := godotenv.Load()
 	   	if err != nil {
 	   		log.Fatal("Error loading .env file")
-	   	}
-	*/
+	   	} */
+
 	host := os.Getenv("DB_HOST")
 	port, enverr := strconv.Atoi(os.Getenv("DB_PORT"))
 	user := os.Getenv("DB_USER")
@@ -82,7 +83,7 @@ func NewPostgresStore() (*PostgresStore, error) {
 	fmt.Println("Successfully connected!")
 
 	return &PostgresStore{
-		db: db,
+		Db: db,
 	}, nil
 }
 
@@ -114,11 +115,11 @@ func (s *PostgresStore) CreateTables() error {
 		updated_at timestamp,
 		FOREIGN KEY (user_id) REFERENCES account(id)
 		);`
-	_, err := s.db.Exec(query)
+	_, err := s.Db.Exec(query)
 	return err
 }
 
-func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
+func (s *PostgresStore) CreateAccount(acc *types.Account) (*types.Account, error) {
 	query := `
     INSERT INTO account
     (first_name, last_name, email, password, status, number, balance, created_at)
@@ -126,7 +127,7 @@ func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
     RETURNING id;`
 
 	var id int
-	err := s.db.QueryRow(
+	err := s.Db.QueryRow(
 		query,
 		acc.FirstName,
 		acc.LastName,
@@ -146,7 +147,7 @@ func (s *PostgresStore) CreateAccount(acc *Account) (*Account, error) {
 	return acc, nil
 }
 
-func (s *PostgresStore) CreateExpense(exp *Expense) (*Expense, error) {
+func (s *PostgresStore) CreateExpense(exp *types.Expense) (*types.Expense, error) {
 
 	query := `
     INSERT INTO expense
@@ -155,7 +156,7 @@ func (s *PostgresStore) CreateExpense(exp *Expense) (*Expense, error) {
     RETURNING id; `
 
 	var id int
-	err := s.db.QueryRow(
+	err := s.Db.QueryRow(
 		query,
 		exp.UserId,
 		exp.ExpenseName,
@@ -175,7 +176,7 @@ func (s *PostgresStore) CreateExpense(exp *Expense) (*Expense, error) {
 	return exp, nil
 }
 
-func (s *PostgresStore) UpdateAccount(*Account) error {
+func (s *PostgresStore) UpdateAccount(*types.Account) error {
 
 	return nil
 }
@@ -183,7 +184,7 @@ func (s *PostgresStore) UpdateAccount(*Account) error {
 func (s *PostgresStore) DeleteAccount(id int) error {
 
 	newStatus := "Deleted"
-	_, err := s.db.Query("update account set status = $2 where id = $1", id, newStatus)
+	_, err := s.Db.Query("update account set status = $2 where id = $1", id, newStatus)
 
 	return err
 }
@@ -191,25 +192,25 @@ func (s *PostgresStore) DeleteAccount(id int) error {
 func (s *PostgresStore) RestoreAccount(id int) error {
 
 	newStatus := "Active"
-	_, err := s.db.Query("update account set status = $2 where id = $1", id, newStatus)
+	_, err := s.Db.Query("update account set status = $2 where id = $1", id, newStatus)
 
 	return err
 }
 
 func (s *PostgresStore) DeleteExpense(id int) error {
-	_, err := s.db.Query("delete from expense where id = $1", id)
+	_, err := s.Db.Query("delete from expense where id = $1", id)
 
 	return err
 }
 
-func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
+func (s *PostgresStore) UpdateExpense(id int, newExp *types.Expense) error {
 
 	query := `
     UPDATE expense
     SET expense_name = $1, expense_purpose = $2, expense_category = $3, expense_value = $4, created_at = $5, updated_at = $6
     WHERE id = $7
-    `
-	result, err := s.db.Exec(
+	RETURNING id;`
+	result, err := s.Db.Exec(
 		query,
 		newExp.ExpenseName,
 		newExp.ExpensePurpose,
@@ -236,13 +237,13 @@ func (s *PostgresStore) UpdateExpense(id int, newExp *Expense) error {
 	return nil
 }
 
-func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
+func (s *PostgresStore) GetAccountById(id int) (*types.Account, error) {
 
 	if id == 0 {
 		return nil, fmt.Errorf("account %d not found", id)
 	}
 
-	rows, err := s.db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account where id=$1", id)
+	rows, err := s.Db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account where id=$1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -254,13 +255,13 @@ func (s *PostgresStore) GetAccountById(id int) (*Account, error) {
 	return nil, fmt.Errorf("account %d not found", id)
 }
 
-func (s *PostgresStore) GetExpenseById(id int) (*Expense, error) {
+func (s *PostgresStore) GetExpenseById(id int) (*types.Expense, error) {
 
 	if id == 0 {
 		return nil, fmt.Errorf("expense %d not found", id)
 	}
 
-	rows, err := s.db.Query("select id, user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, created_at from expense where id=$1", id)
+	rows, err := s.Db.Query("select id, user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, created_at from expense where id=$1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -272,8 +273,8 @@ func (s *PostgresStore) GetExpenseById(id int) (*Expense, error) {
 	return nil, fmt.Errorf("expense %d not found", id)
 }
 
-func (s *PostgresStore) GetAccountByEmail(email string) (*Account, error) {
-	rows, err := s.db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account where email=$1", email)
+func (s *PostgresStore) GetAccountByEmail(email string) (*types.Account, error) {
+	rows, err := s.Db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account where email=$1", email)
 	if err != nil {
 		return nil, err
 	}
@@ -285,12 +286,12 @@ func (s *PostgresStore) GetAccountByEmail(email string) (*Account, error) {
 	return nil, fmt.Errorf("account %s not found", email)
 }
 
-func (s *PostgresStore) GetAccounts() ([]*Account, error) {
-	rows, err := s.db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account")
+func (s *PostgresStore) GetAccounts() ([]*types.Account, error) {
+	rows, err := s.Db.Query("select id, first_name, last_name, email, password, status, number, balance, created_at from account")
 	if err != nil {
 		return nil, err
 	}
-	accounts := []*Account{}
+	accounts := []*types.Account{}
 	for rows.Next() {
 		account, err := ScanIntoAccount(rows)
 		if err != nil {
@@ -301,8 +302,8 @@ func (s *PostgresStore) GetAccounts() ([]*Account, error) {
 	return accounts, nil
 }
 
-func ScanIntoAccount(r *sql.Rows) (*Account, error) {
-	account := new(Account)
+func ScanIntoAccount(r *sql.Rows) (*types.Account, error) {
+	account := new(types.Account)
 	err := r.Scan(
 		&account.ID,
 		&account.FirstName,
@@ -317,8 +318,8 @@ func ScanIntoAccount(r *sql.Rows) (*Account, error) {
 	return account, err
 }
 
-func ScanIntoExpense(r *sql.Rows) (*Expense, error) {
-	expense := new(Expense)
+func ScanIntoExpense(r *sql.Rows) (*types.Expense, error) {
+	expense := new(types.Expense)
 	err := r.Scan(
 		&expense.ID,
 		&expense.UserId,
@@ -333,12 +334,12 @@ func ScanIntoExpense(r *sql.Rows) (*Expense, error) {
 	return expense, err
 }
 
-func (s *PostgresStore) GetExpenseForUser(id int) ([]*Expense, error) {
-	rows, err := s.db.Query("select id, user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, created_at from expense where user_id=$1", id)
+func (s *PostgresStore) GetExpenseForUser(id int) ([]*types.Expense, error) {
+	rows, err := s.Db.Query("select id, user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, created_at from expense where user_id=$1", id)
 	if err != nil {
 		return nil, err
 	}
-	expenses := []*Expense{}
+	expenses := []*types.Expense{}
 	for rows.Next() {
 		expense, err := ScanIntoExpense(rows)
 		if err != nil {
@@ -349,12 +350,12 @@ func (s *PostgresStore) GetExpenseForUser(id int) ([]*Expense, error) {
 	return expenses, nil
 }
 
-func (s *PostgresStore) GetAllExpense() ([]*Expense, error) {
-	rows, err := s.db.Query("select id, user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, updated_at from expense")
+func (s *PostgresStore) GetAllExpense() ([]*types.Expense, error) {
+	rows, err := s.Db.Query("select id, user_id, expense_name, expense_purpose, expense_category, expense_value, created_at, updated_at from expense")
 	if err != nil {
 		return nil, err
 	}
-	expenses := []*Expense{}
+	expenses := []*types.Expense{}
 	for rows.Next() {
 		expense, err := ScanIntoExpense(rows)
 		if err != nil {

@@ -5,11 +5,17 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/ElenaGrasovskaya/gobank/account"
+	"github.com/ElenaGrasovskaya/gobank/expense"
+	"github.com/ElenaGrasovskaya/gobank/services"
+	"github.com/ElenaGrasovskaya/gobank/storage"
+
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	store, err := NewPostgresStore()
+	store, err := storage.NewPostgresStore()
+
 	if err != nil {
 		log.Fatalf("Failed to initialize the store: %v", err)
 	}
@@ -17,34 +23,37 @@ func main() {
 	if err := store.Init(); err != nil {
 		log.Fatalf("Failed to initialize the store: %v", err)
 	}
-	s := NewAPIServer(":3000", store)
 
+	e := expense.NewExpenseHandler(store)
+	a := account.NewAccountHandler(store)
+	s := services.NewServiceHandler(store)
 	r := gin.Default()
-	r.Use(CorsMiddleware())
+	r.Use(services.CorsMiddleware())
 
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
 	})
 
-	authMiddleware := WithJWTAuthMiddleware(store)
+	authMiddleware := services.WithJWTAuthMiddleware(store)
 
-	r.POST("/login", s.handleLogin)
-	r.POST("/register", s.handleRegister)
-	r.POST("/logout", s.handleLogout)
+	r.GET("/", s.HandleHealth)
+	r.POST("/login", s.HandleLogin)
+	r.POST("/register", s.HandleRegister)
+	r.POST("/logout", s.HandleLogout)
 
 	authGroup := r.Group("/")
 	authGroup.Use(authMiddleware)
 	{
-		authGroup.POST("/expense", s.handleCreateExpense)
-		authGroup.POST("/expense/:id", s.handleUpdateExpense)
-		authGroup.GET("/expense", s.handleGetExpenseForUser)
-		authGroup.DELETE("/expense/:id", s.handleDeleteExpense)
-		authGroup.GET("/expenses", s.handleGetAllExpense)
+		authGroup.POST("/expense", e.HandleCreateExpense)
+		authGroup.POST("/expense/:id", e.HandleUpdateExpense)
+		authGroup.GET("/expense", e.HandleGetExpenseForUser)
+		authGroup.DELETE("/expense/:id", e.HandleDeleteExpense)
+		authGroup.GET("/expenses", e.HandleGetAllExpense)
 
-		authGroup.GET("/accounts", s.handleGetAccount)
-		authGroup.POST("/account", s.handleCreateAccount)
-		authGroup.DELETE("/account/:id", s.handleDeleteAccount)
-		authGroup.GET("/account/:id", s.handleGetAccountById)
+		authGroup.GET("/accounts", a.HandleGetAccount)
+		authGroup.POST("/account", a.HandleCreateAccount)
+		authGroup.DELETE("/account/:id", a.HandleDeleteAccount)
+		authGroup.GET("/account/:id", a.HandleGetAccountById)
 	}
 	fmt.Println("JSON API server is running on port: 3000")
 
