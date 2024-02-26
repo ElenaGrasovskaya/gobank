@@ -37,12 +37,13 @@ func (s *StoreHandler) HandleHealth(c *gin.Context) {
 
 func (s *StoreHandler) HandleLogin(c *gin.Context) {
 	var req types.LoginRequest
+	stdCtx := c.Request.Context()
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	account, err := s.store.GetAccountByEmail(req.Email)
+	account, err := s.store.GetAccountByEmail(stdCtx, req.Email)
 	if err != nil {
 		clearSession(c)
 		c.JSON(http.StatusExpectationFailed, gin.H{"error": err.Error()})
@@ -74,6 +75,7 @@ func (s *StoreHandler) HandleLogin(c *gin.Context) {
 
 func (s *StoreHandler) HandleRegister(c *gin.Context) {
 	createAccountRequest := new(types.CreateAccountRequest)
+	stdCtx := c.Request.Context()
 	if err := c.ShouldBindJSON(createAccountRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -85,13 +87,13 @@ func (s *StoreHandler) HandleRegister(c *gin.Context) {
 		return
 	}
 
-	existAccount, err := s.store.GetAccountByEmail(createAccountRequest.Email)
+	existAccount, err := s.store.GetAccountByEmail(stdCtx, createAccountRequest.Email)
 	if err == nil && existAccount != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Account " + existAccount.Email + " already exists"})
 		return
 	}
 
-	newAcc, err := s.store.CreateAccount(account)
+	newAcc, err := s.store.CreateAccount(stdCtx, account)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store new account"})
 		return
@@ -136,15 +138,6 @@ func setSession(c *gin.Context, userId int, userEmail string) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session token"})
 		return
 	} else {
-
-		/* cookie := &http.Cookie{
-			Name:     "token",
-			Value:    tokenString,
-			Path:     "/",
-			MaxAge:   30 * 24 * 60 * 60,
-			SameSite: http.SameSiteNoneMode,
-			Secure:   true,
-		} */
 		fmt.Println("token created")
 		c.SetCookie("token", tokenString, 30*24*60*60, "/", "", false, true)
 	}
@@ -244,7 +237,8 @@ func CorsMiddleware() gin.HandlerFunc {
 func WithJWTAuthMiddleware(s storage.Storage) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		fmt.Println("calling JWT auth middleware")
-		// Using Gin's context to get cookie
+		stdCtx := c.Request.Context()
+
 		cookie, err := c.Cookie("token")
 		if err != nil {
 			fmt.Println(err)
@@ -269,7 +263,7 @@ func WithJWTAuthMiddleware(s storage.Storage) gin.HandlerFunc {
 			id := claims["id"].(float64)
 			email := claims["email"].(string)
 
-			account, err := s.GetAccountById(int(id))
+			account, err := s.GetAccountById(stdCtx, int(id))
 			if err != nil {
 				permissionDenied(c)
 				return

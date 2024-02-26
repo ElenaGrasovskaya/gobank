@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -24,6 +25,9 @@ import (
 	"github.com/ElenaGrasovskaya/gobank/services"
 	"github.com/ElenaGrasovskaya/gobank/storage"
 	"github.com/ElenaGrasovskaya/gobank/types"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 func createMockAuthCookie() (*http.Cookie, *types.Account) {
@@ -54,8 +58,6 @@ func createMockAuthCookie() (*http.Cookie, *types.Account) {
 
 func NewTestPostgresStore() (*storage.PostgresStore, error) {
 	err := godotenv.Load("../.env")
-
-	fmt.Println("load env")
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
@@ -70,29 +72,17 @@ func NewTestPostgresStore() (*storage.PostgresStore, error) {
 		fmt.Printf("%v", enverr)
 	}
 
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=require",
-		host, port, user, password, dbname)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=require",
+		user, password, host, port, dbname)
+	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+	db := bun.NewDB(sqldb, pgdialect.New())
 
-	db, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-	//defer db.Close()
+	fmt.Println("Successfully connected to the database with Bun!")
 
-	err = db.Ping()
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-
-	return &storage.PostgresStore{
-		Db: db,
-	}, nil
+	return &storage.PostgresStore{Db: db}, nil
 }
 
-func InitializeTestServer() *gin.Engine {
+func InitializeTestServer() (*gin.Engine, *storage.PostgresStore) {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
 
@@ -105,11 +95,11 @@ func InitializeTestServer() *gin.Engine {
 	}
 
 	r := router.SetupRouter(store)
-	return r
+	return r, store
 }
 
 func TestHandleLogin(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 
 	email := "testing@gmail.com"
 
@@ -133,7 +123,7 @@ func TestHandleLogin(t *testing.T) {
 }
 
 func TestHandleRegister(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 
 	email := "testing@gmail.com"
 
@@ -159,7 +149,7 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogout(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 	//Case 1 logout without cookie
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/logout", nil)
@@ -177,7 +167,7 @@ func TestHandleLogout(t *testing.T) {
 }
 
 func TestHandleGetAccount(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 	cookie, _ := createMockAuthCookie()
 
 	w := httptest.NewRecorder()
@@ -191,7 +181,7 @@ func TestHandleGetAccount(t *testing.T) {
 }
 
 func TestHandleGetAccountById(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 
 	testID := 7
 	cookie, mockAccount := createMockAuthCookie()
@@ -252,7 +242,7 @@ func TestHandleGetAccountById(t *testing.T) {
 }
 
 func TestHandleDeleteAccount(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 
 	testID := "7"
 	cookie, _ := createMockAuthCookie()
@@ -285,7 +275,7 @@ func TestHandleDeleteAccount(t *testing.T) {
 }
 
 func TestHandleGetAllExpense(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 	cookie, _ := createMockAuthCookie()
 
 	w := httptest.NewRecorder()
@@ -299,7 +289,7 @@ func TestHandleGetAllExpense(t *testing.T) {
 }
 
 func TestHandleGetExpenseForUser(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 
 	mockAccount := &types.Account{
 		ID:        7,
@@ -353,7 +343,7 @@ func TestHandleGetExpenseForUser(t *testing.T) {
 }
 
 func TestHandleCreateExpense(t *testing.T) {
-	router := InitializeTestServer()
+	router, _ := InitializeTestServer()
 
 	expenseData := &types.CreateExpenseRequest{
 		ExpenseName:     "test",
@@ -393,9 +383,9 @@ func TestHandleCreateExpense(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code, "Expected status code 404")
 }
-
-/* func TestHandleUpdateExpense(t *testing.T) {
-	router := InitializeTestServer()
+func TestHandleUpdateExpense(t *testing.T) {
+	ctx := context.Background()
+	router, store := InitializeTestServer()
 	cookie, _ := createMockAuthCookie()
 	newExpenseData := &types.Expense{
 		UserId:          7,
@@ -407,13 +397,17 @@ func TestHandleCreateExpense(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
-	e := expense.NewExpenseHandler(store)
+	newExp, err := store.CreateExpense(ctx, newExpenseData)
+	assert.NoError(t, err, "Expected no error creating new expense")
+	if err != nil {
+		fmt.Printf("%v", err)
+	}
 
-	newExp, err := e.CreateExpense(newExpenseData)
+	fmt.Printf("%v", newExp)
 
 	editId := newExp.ID
 
-	updateExpenseData := &UpdateExpenseRequest{
+	updateExpenseData := &types.UpdateExpenseRequest{
 		ExpenseName:     "edited",
 		ExpensePurpose:  "edited",
 		ExpenseCategory: "edited",
@@ -430,7 +424,7 @@ func TestHandleCreateExpense(t *testing.T) {
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/expense/%d", editId), bytes.NewBuffer(body))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusUnauthorized, w.Code, "Expected status code 401")
+	assert.Equal(t, http.StatusForbidden, w.Code, "Expected status code 403")
 
 	// Test 2: Valid request
 
@@ -443,21 +437,22 @@ func TestHandleCreateExpense(t *testing.T) {
 	// Test 3: Invalid request
 	testInvalidId := "test"
 	req, _ = http.NewRequest("POST", fmt.Sprintf("/expense/%v", testInvalidId), bytes.NewBuffer(body))
+	req.AddCookie(cookie)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code, "Expected status code 404")
-} */
+}
 
-/* func TestHandleDeleteExpense(t *testing.T) {
-	router := InitializeTestServer()
-
-	//router.DELETE("/expense/:id", server.handleDeleteExpense)
+func TestHandleDeleteExpense(t *testing.T) {
+	ctx := context.Background()
+	router, store := InitializeTestServer()
+	cookie, _ := createMockAuthCookie()
 
 	testExpense, err := types.NewExpense(7, "test", "test", "test", 100, time.Now())
 	assert.NoError(t, err, "Expected no error creating new expense")
 
-	//newExpense, newErr := server.store.CreateExpense(testExpense)
+	newExpense, newErr := store.CreateExpense(ctx, testExpense)
 	assert.NoError(t, newErr, "Expected no error creating new expense")
 
 	tests := []struct {
@@ -469,11 +464,6 @@ func TestHandleCreateExpense(t *testing.T) {
 		{"Delete existing expense", fmt.Sprintf("%d", newExpense.ID), http.StatusOK, fmt.Sprintf("{\"deleted\":%d}", newExpense.ID)},
 		{"Delete non-existing expense", fmt.Sprintf("%d", newExpense.ID), http.StatusNotFound, ""},
 		{"Invalid account ID", "abc", http.StatusNotFound, ""},
-	}
-
-	cookie := &http.Cookie{
-		Name:  "token",
-		Value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RpbmdAZ21haWwuY29tIiwiaWQiOjd9.L96v-PecYaVZ7vjeZ3uSbGcQXhfOGHCOFeJj0rCWH0w",
 	}
 
 	for _, test := range tests {
@@ -491,4 +481,4 @@ func TestHandleCreateExpense(t *testing.T) {
 			}
 		})
 	}
-} */
+}

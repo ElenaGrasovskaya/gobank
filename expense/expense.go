@@ -29,8 +29,8 @@ func NewExpenseHandler(store storage.Storage) *StoreHandler {
 }
 
 func (s *StoreHandler) HandleGetAllExpense(c *gin.Context) {
-
-	expenses, err := s.store.GetAllExpense()
+	stdCtx := c.Request.Context()
+	expenses, err := s.store.GetAllExpense(stdCtx)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not load the data": err.Error()})
@@ -41,12 +41,13 @@ func (s *StoreHandler) HandleGetAllExpense(c *gin.Context) {
 }
 
 func (s *StoreHandler) HandleGetExpenseForUser(c *gin.Context) {
+	stdCtx := c.Request.Context()
 	userId, err := services.GetIdFromCookie(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	expenses, err := s.store.GetExpenseForUser(userId)
+	expenses, err := s.store.GetExpenseForUser(stdCtx, userId)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -58,6 +59,7 @@ func (s *StoreHandler) HandleGetExpenseForUser(c *gin.Context) {
 
 func (s *StoreHandler) HandleCreateExpense(c *gin.Context) {
 	createExpenseRequest := new(types.CreateExpenseRequest)
+	stdCtx := c.Request.Context()
 	if err := c.ShouldBindJSON(createExpenseRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -79,7 +81,7 @@ func (s *StoreHandler) HandleCreateExpense(c *gin.Context) {
 
 	fmt.Printf("Prepared new expense %v \n", expense)
 
-	newExp, err := s.store.CreateExpense(expense)
+	newExp, err := s.store.CreateExpense(stdCtx, expense)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store new expense"})
 		return
@@ -90,7 +92,7 @@ func (s *StoreHandler) HandleCreateExpense(c *gin.Context) {
 
 func (s *StoreHandler) HandleUpdateExpense(c *gin.Context) {
 	updateExpenseRequest := new(types.UpdateExpenseRequest)
-
+	stdCtx := c.Request.Context()
 	if err := c.ShouldBindJSON(updateExpenseRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -98,7 +100,7 @@ func (s *StoreHandler) HandleUpdateExpense(c *gin.Context) {
 
 	id, err := services.GetId(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Failed to retrieve user ID from cookie"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to retrieve user ID from cookie"})
 		return
 	}
 
@@ -113,7 +115,7 @@ func (s *StoreHandler) HandleUpdateExpense(c *gin.Context) {
 		return
 	}
 
-	if err := s.store.UpdateExpense(id, expense); err != nil {
+	if err := s.store.UpdateExpense(stdCtx, id, expense); err != nil {
 		fmt.Printf("%v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update expense"})
 		return
@@ -123,19 +125,20 @@ func (s *StoreHandler) HandleUpdateExpense(c *gin.Context) {
 }
 
 func (s *StoreHandler) HandleDeleteExpense(c *gin.Context) {
+	stdCtx := c.Request.Context()
 	id, err := services.GetId(c)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to get id from the request"})
 		return
 	}
 
-	expense, err := s.store.GetExpenseById(id)
+	expense, err := s.store.GetExpenseById(stdCtx, id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to find the requested expense"})
 		return
 	}
 
-	if err := s.store.DeleteExpense(id); err != nil {
+	if err := s.store.DeleteExpense(stdCtx, id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete an expense"})
 		return
 	}

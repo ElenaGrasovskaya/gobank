@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/uptrace/bun"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -42,7 +43,7 @@ type LoginResponse struct {
 	Email     string `json:"email"`
 }
 
-type Account struct {
+/* type Account struct {
 	ID        int       `json:"id"`
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
@@ -52,7 +53,7 @@ type Account struct {
 	Number    int64     `json:"number"`
 	Balance   int64     `json:"balance"`
 	CreatedAt time.Time `json:"createdAt"`
-}
+} */
 
 type ResponceAccount struct {
 	ID        int       `json:"id"`
@@ -64,17 +65,18 @@ type ResponceAccount struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-type Expense struct {
-	ID              int       `json:"id"`
-	UserId          int       `json:"user_id"`
-	ExpenseName     string    `json:"expense_name"`
-	ExpensePurpose  string    `json:"expense_purpose"`
-	ExpenseCategory string    `json:"expense_category"`
-	ExpenseValue    float32   `json:"expense_value"`
-	CreatedAt       time.Time `json:"updated_at"`
-	UpdatedAt       time.Time `json:"created_at"`
-}
-
+/*
+	type Expense struct {
+		ID              int       `json:"id"`
+		UserId          int       `json:"user_id"`
+		ExpenseName     string    `json:"expense_name"`
+		ExpensePurpose  string    `json:"expense_purpose"`
+		ExpenseCategory string    `json:"expense_category"`
+		ExpenseValue    float32   `json:"expense_value"`
+		CreatedAt       time.Time `json:"updated_at"`
+		UpdatedAt       time.Time `json:"created_at"`
+	}
+*/
 func NewAccount(firstName, lastName, email, password string) (*Account, error) {
 	encpw, er := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if er != nil {
@@ -126,4 +128,30 @@ func UpdatedExpense(id, userId int, expenseName, expensePurpose, expenseCategory
 		CreatedAt:       createdAt,
 		UpdatedAt:       time.Now(),
 	}, nil
+}
+
+type Account struct {
+	bun.BaseModel `bun:"table:account,alias:a"`
+	ID            int       `bun:"id,pk,autoincrement"`
+	FirstName     string    `bun:"first_name"`
+	LastName      string    `bun:"last_name"`
+	Email         string    `bun:"email,unique"`
+	Password      string    `bun:"password"`
+	Status        string    `bun:"status"`
+	Number        int64     `bun:"number"`
+	Balance       int64     `bun:"balance"`
+	CreatedAt     time.Time `bun:"created_at"`
+}
+
+type Expense struct {
+	bun.BaseModel   `bun:"table:expense,alias:e"`
+	ID              int       `bun:"id,pk,autoincrement"`
+	UserId          int       `bun:"un:"user_id,fk:UserId"`
+	ExpenseName     string    `bun:"expense_name"`
+	ExpensePurpose  string    `bun:"expense_purpose"`
+	ExpenseCategory string    `bun:"expense_category"`
+	ExpenseValue    float32   `bun:"expense_value"`
+	CreatedAt       time.Time `bun:"created_at"`
+	UpdatedAt       time.Time `bun:"updated_at"`
+	Account         *Account  `bun:"rel:belongs-to,join:user_id=id"`
 }

@@ -28,8 +28,8 @@ func NewAccountHandler(store storage.Storage) *StoreHandler {
 }
 
 func (s *StoreHandler) HandleGetAccount(c *gin.Context) {
-
-	accounts, err := s.store.GetAccounts()
+	stdCtx := c.Request.Context()
+	accounts, err := s.store.GetAccounts(stdCtx)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not load the data": err.Error()})
@@ -41,14 +41,14 @@ func (s *StoreHandler) HandleGetAccount(c *gin.Context) {
 }
 
 func (s *StoreHandler) HandleGetAccountById(c *gin.Context) {
-
+	stdCtx := c.Request.Context()
 	id, err := services.GetId(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not load the data from request": err.Error()})
 		return
 	}
 
-	account, err := s.store.GetAccountById(id)
+	account, err := s.store.GetAccountById(stdCtx, id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not load the data from request": err.Error()})
 		return
@@ -68,6 +68,7 @@ func (s *StoreHandler) HandleGetAccountById(c *gin.Context) {
 }
 
 func (s *StoreHandler) HandleCreateAccount(c *gin.Context) {
+	stdCtx := c.Request.Context()
 	createAccountRequest := new(types.CreateAccountRequest)
 	if err := c.ShouldBindJSON(createAccountRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -80,7 +81,7 @@ func (s *StoreHandler) HandleCreateAccount(c *gin.Context) {
 		return
 	}
 
-	newAcc, err := s.store.CreateAccount(account)
+	newAcc, err := s.store.CreateAccount(stdCtx, account)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not create an account": err.Error()})
 		return
@@ -98,12 +99,13 @@ func (s *StoreHandler) HandleCreateAccount(c *gin.Context) {
 
 func (s *StoreHandler) HandleDeleteAccount(c *gin.Context) {
 	id, err := services.GetId(c)
+	stdCtx := c.Request.Context()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Invalid account number": err.Error()})
 		return
 	}
 
-	account, err := s.store.GetAccountById(id)
+	account, err := s.store.GetAccountById(stdCtx, id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not delete an account": err.Error()})
 		return
@@ -114,7 +116,7 @@ func (s *StoreHandler) HandleDeleteAccount(c *gin.Context) {
 		return
 	}
 	fmt.Printf("After check %v", account.Status)
-	if err := s.store.DeleteAccount(id); err != nil {
+	if err := s.store.DeleteAccount(stdCtx, id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"Could not delete an account": err.Error()})
 	}
 
