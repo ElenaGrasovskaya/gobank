@@ -140,6 +140,7 @@ func setSession(c *gin.Context, userId int, userEmail string) {
 	} else {
 		fmt.Println("token created")
 		c.SetCookie("token", tokenString, 30*24*60*60, "/", "", false, true)
+		c.SetSameSite(http.SameSiteNoneMode)
 	}
 }
 
