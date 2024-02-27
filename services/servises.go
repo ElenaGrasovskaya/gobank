@@ -140,13 +140,13 @@ func setSession(c *gin.Context, userId int, userEmail string) {
 	} else {
 		fmt.Println("token created")
 		c.SetSameSite(http.SameSiteNoneMode)
-		c.SetCookie("token", tokenString, 30*24*60*60, "/", "", false, true)
+		c.SetCookie("token", tokenString, 30*24*60*60, "/", "", true, true)
 
 	}
 }
 
 func clearSession(c *gin.Context) {
-	c.SetCookie("token", "", -1, "/", "", false, true)
+	c.SetCookie("token", "", -1, "/", "", true, true)
 }
 
 func encrPassword(reqPassword string, dbPassword string) (bool, error) {
