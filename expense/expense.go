@@ -59,6 +59,7 @@ func (s *StoreHandler) HandleGetExpenseForUser(c *gin.Context) {
 
 func (s *StoreHandler) HandleCreateExpense(c *gin.Context) {
 	createExpenseRequest := new(types.CreateExpenseRequest)
+	fmt.Printf("WE GET %v", createExpenseRequest)
 	stdCtx := c.Request.Context()
 	if err := c.ShouldBindJSON(createExpenseRequest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

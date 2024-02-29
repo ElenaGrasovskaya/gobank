@@ -72,7 +72,7 @@ func NewAccount(firstName, lastName, email, password string) (*Account, error) {
 
 func NewExpense(userId int, expenseName, expensePurpose, expenseCategory string, expenseValue float32, createdAt time.Time) (*Expense, error) {
 
-	/* 	requestDate, err := time.Parse("Mon Jan 02 15:04:05 -0700 2006", createdAt)
+	/* 	requestDate, err := time.Parse("Mon Jan 02 15:04:05 -0700 2006", createdAt.Local().String())
 	   	if err != nil {
 	   		return nil, err
 	   	} */
@@ -89,11 +89,11 @@ func NewExpense(userId int, expenseName, expensePurpose, expenseCategory string,
 }
 
 func UpdatedExpense(id, userId int, expenseName, expensePurpose, expenseCategory string, expenseValue float32, createdAt time.Time) (*Expense, error) {
-	/*
-		requestDate, err := time.Parse("Mon Jan 02 15:04:05 -0700 2006", createdAt)
-		if err != nil {
-			return nil, err
-		} */
+
+	/* 	requestDate, err := time.Parse("Mon Jan 02 15:04:05 -0700 2006", createdAt.Local().String())
+	   	if err != nil {
+	   		return nil, err
+	   	} */
 	return &Expense{
 		ID:              id,
 		UserId:          userId,

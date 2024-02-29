@@ -253,14 +253,12 @@ func WithJWTAuthMiddleware(s storage.Storage) gin.HandlerFunc {
 			permissionDenied(c)
 			return
 		}
-		fmt.Printf("TOKEN FROM REQUEST %v", token)
 		if !token.Valid {
 			permissionDenied(c)
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
-		fmt.Printf("CLAIMS: %v", claims)
 		if ok && token.Valid {
 			id := claims["id"].(float64)
 			email := claims["email"].(string)
